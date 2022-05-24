@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\User;
 use App\Category;
 use App\Post;
+use App\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -17,7 +18,8 @@ class PostController extends Controller
         'content'   => 'required'
     ];
 
-    private function getValidators($model) {
+    private function getValidators($model)
+    {
         return [
             'title'     => 'required|max:100',
             'slug' => [
@@ -25,26 +27,31 @@ class PostController extends Controller
                 Rule::unique('posts')->ignore($model),
                 'max:100'
             ],
-            'category_id'  => 'required|exists:App\Category,id',
-            'content'   => 'required'
+            'category_id'   => 'required|exists:App\Category,id',
+            'content'       => 'required',
+            'tags'          => 'exists:App\Tag,id'
         ];
     }
 
-    public function myindex() {
+    public function myindex()
+    {
         $posts = Post::where('user_id', Auth::user()->id)->paginate(50);
 
         return view('admin.posts.index', compact('posts'));
     }
 
     public function index(Request $request)
-    {   
+    {
 
         $posts = Post::where('id', '>', 0);
 
         if ($request->s) {
-            $posts->where('title', 'LIKE', "%$request->s%");
+            $posts->where(function ($query) use ($request) {
+                $query->where('title', 'LIKE', "%$request->s%")
+                    ->orWhere('content', 'LIKE', "%$request->s%");
+            });
         }
-        
+
         if ($request->category) {
             $posts->where('category_id', $request->category);
         }
@@ -52,7 +59,7 @@ class PostController extends Controller
         if ($request->author) {
             $posts->where('user_id', $request->author);
         }
-        
+
         $posts = $posts->paginate(20);
         $categories = Category::all();
         $users = User::all();
@@ -65,9 +72,13 @@ class PostController extends Controller
     }
 
     public function create()
-    {   
+    {
         $categories = Category::all();
-        return view('admin.posts.create', compact('categories'));
+        $tags = Tag::all();
+        return view('admin.posts.create', [
+            'categories'    => $categories,
+            'tags'          => $tags
+        ]);
     }
 
     public function store(Request $request)
@@ -78,6 +89,7 @@ class PostController extends Controller
             'user_id' => Auth::user()->id
         ];
         $post = Post::create($formData);
+        $post->tags()->attach($formData['tags']);
 
         return redirect()->route('admin.posts.show', $post->slug);
     }
@@ -88,26 +100,33 @@ class PostController extends Controller
     }
 
     public function edit(Post $post)
-    {   
+    {
         if (Auth::user()->id !== $post->user_id) abort(403);
-        return view('admin.posts.edit', compact('post'));
+        $categories = Category::all();
+        $tags = Tag::all();
+        return view('admin.posts.edit', [
+            'post'          => $post,
+            'categories'    => $categories,
+            'tags'          => $tags
+        ]);
     }
 
     public function update(Request $request, Post $post)
-    {   
+    {
         if (Auth::user()->id !== $post->user_id) abort(403);
 
         $request->validate($this->getValidators($post));
-
-        $post->update($request->all());
+        $formData = $request->all();
+        $post->update($formData);
+        $post->tags()->sync($formData['tags']);
 
         return redirect()->route('admin.posts.show', $post->slug);
     }
 
     public function destroy(Post $post)
-    {   
+    {
         if (Auth::user()->id !== $post->user_id) abort(403);
-
+        $post->tags()->detach();
         $post->delete();
 
         return redirect((url()->previous()));
