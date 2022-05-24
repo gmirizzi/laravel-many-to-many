@@ -34,6 +34,17 @@
                     @error('category_id')
                         <div class="alert alert-danger">{{ $message }}</div>
                     @enderror
+                    <fieldset>
+                        <legend>Tags</legend>
+                        @foreach ($tags as $tag)
+                            <input type="checkbox" name="tags[]" id="tag-{{ $tag->id }}" value="{{ $tag->id }}"
+                                @if (in_array($tag->id, old('tags', []))) checked @endif>
+                            <label for="tag-{{ $tag->id }}">{{ $tag->name }}</label>
+                        @endforeach
+                    </fieldset>
+                    @error('tags')
+                        <div class="alert alert-danger">{{ $message }}</div>
+                    @enderror
                     <div class="mb-3">
                         <label for="content" class="form-label">{{ __('Content') }}</label>
                         <textarea class="form-control" id="content" rows="10" name="content">{{ old('content') }}</textarea>
